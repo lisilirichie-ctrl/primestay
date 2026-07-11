@@ -988,7 +988,7 @@ function PropertyForm({
         >
           <Upload size={14} />
           Drop images here, or click to upload
-          <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileSelect} />
+          <input ref={fileInputRef} type="file" accept="image/*" multiple={false} className="hidden" onChange={handleFileSelect} />
         </label>
       </div>
 
