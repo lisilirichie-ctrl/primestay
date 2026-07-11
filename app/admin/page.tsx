@@ -793,7 +793,7 @@ function PropertyForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !city.trim() || !pricePerNight) {
-      setError("Jaza Title, City, na Price kabla ya kusave.");
+      setError("fill Title, City, and Price before saving.");
       return;
     }
     setError(null);
@@ -988,7 +988,18 @@ function PropertyForm({
         >
           <Upload size={14} />
           Drop images here, or click to upload
-          <input ref={fileInputRef} type="file" accept="image/*" multiple={false} className="hidden" onChange={handleFileSelect} />
+         <input
+  ref={fileInputRef}
+  type="file"
+  accept="image/*"
+  multiple
+  className="hidden"
+  capture="environment"
+  onClick={(e) => {
+    (e.currentTarget as HTMLInputElement).value = "";
+  }}
+  onChange={handleFileSelect}
+/>
         </label>
       </div>
 
