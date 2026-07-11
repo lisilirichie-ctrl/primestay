@@ -1,15 +1,10 @@
-import { supabase } from "@/lib/supabase";
+"use client";
 
-export default async function PropertiesPage() {
-  const { data, error } = await supabase.from("properties").select("*");
-
-  console.log("Properties:", data);
-  console.log("Error:", error);
-
+export default function PropertiesPage() {
   return (
-    <div>
-      <h1>Properties</h1>
-      <pre>{JSON.stringify(data, null, 2)}</pre>
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <h1 className="text-3xl font-bold mb-6">Properties</h1>
+      <p className="text-gray-400">Properties listing page coming soon.</p>
     </div>
   );
 }

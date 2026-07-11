@@ -5,8 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import {
-  Search, MapPin, Calendar, Users, Star,
-  ShieldCheck, MessageCircle, Award,
+  MapPin, ShieldCheck, MessageCircle, Award,
   ChevronRight, ChevronLeft, Menu, X,
   Home, Compass, Info, Mail
 
@@ -15,7 +14,7 @@ import { FaFacebookF, FaInstagram, FaLinkedinIn } from "react-icons/fa";
 
 // TODO: weka namba halisi ya WhatsApp ya client hapa (format: 2547XXXXXXXX, bila +)
 const WHATSAPP_NUMBER = "2547XXXXXXXX";
-const SITE_NAME = "PrimeStay"; // TODO: badilisha na jina halisi la brand
+const SITE_NAME = "TuliaStays"; // TODO: badilisha na jina halisi la brand
 
 // Real WhatsApp glyph (the actual phone-in-bubble logo), not a generic chat icon
 function WhatsAppIcon({ className = "", size = 20 }: { className?: string; size?: number }) {
@@ -77,6 +76,50 @@ function whatsappLink(property?: Property): string {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 }
 
+// A WhatsApp button with a ripple + glow micro-interaction before the chat opens.
+// Works as any button: pass children for full CTA style, or just an icon for compact use.
+function WhatsAppCTA({
+  property,
+  className = "",
+  children,
+}: {
+  property?: Property;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const id = Date.now();
+    setRipples((prev) => [...prev, { id, x: e.clientX - rect.left, y: e.clientY - rect.top }]);
+    setTimeout(() => setRipples((prev) => prev.filter((r) => r.id !== id)), 600);
+
+    // slight delay so the ripple + glow is visible before the tab opens
+    setTimeout(() => {
+      window.open(whatsappLink(property), "_blank", "noopener,noreferrer");
+    }, 220);
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className={`relative overflow-hidden isolate ${className}`}
+    >
+      {ripples.map((r) => (
+        <span
+          key={r.id}
+          className="wa-ripple"
+          style={{ left: r.x, top: r.y }}
+        />
+      ))}
+      {children}
+    </button>
+  );
+}
+
 function useScrollRow() {
   const ref = useRef<HTMLDivElement>(null);
   const scroll = (dir: 'left' | 'right') => {
@@ -94,24 +137,34 @@ function PropertyCard({ prop }: { prop: Property }) {
   const imgSrc = getPrimaryImage(prop.property_images);
 
   return (
-    <div
+    <motion.div
       data-card
+      whileHover={{ y: -6 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
       onClick={() => router.push(`/property/${prop.id}`)}
       className="flex-shrink-0 w-[48vw] sm:w-[38vw] md:w-[220px] lg:w-[240px] cursor-pointer group"
     >
-      <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-2">
-        <img src={imgSrc} alt={prop.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-        <a
-          href={whatsappLink(prop)}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="absolute top-2 right-2 flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-[#25D366] to-[#128C7E] shadow-[0_2px_10px_rgba(37,211,102,0.5)] ring-1 ring-white/20 hover:scale-110 active:scale-95 transition-transform"
-        >
-          <WhatsAppIcon size={17} className="text-white" />
-        </a>
+      {/* gradient border wrapper */}
+      <div className="p-[1.5px] rounded-xl bg-gradient-to-br from-amber-500/30 via-white/10 to-blue-500/30 group-hover:from-amber-500/60 group-hover:to-blue-500/60 transition-colors duration-300 shadow-lg group-hover:shadow-[0_10px_30px_rgba(245,158,11,0.15)]">
+        <div className="relative w-full aspect-square rounded-[10px] overflow-hidden">
+          <img
+            src={imgSrc}
+            alt={prop.title}
+            className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+            loading="lazy"
+          />
+          {/* glass reflection sheen */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/5 pointer-events-none" />
+          <WhatsAppCTA
+            property={prop}
+            className="absolute top-2 right-2 flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-[#25D366] to-[#128C7E] shadow-[0_2px_10px_rgba(37,211,102,0.5)] ring-1 ring-white/20 hover:scale-110 hover:shadow-[0_0_18px_rgba(37,211,102,0.7)] active:scale-95 transition-all"
+          >
+            <WhatsAppIcon size={17} className="text-white" />
+          </WhatsAppCTA>
+        </div>
       </div>
-      <div>
+      <div className="mt-2">
         <p className="text-white text-xs sm:text-sm font-semibold leading-tight truncate">{prop.title}</p>
         <p className="text-slate-400 text-xs mt-0.5 truncate">{prop.city}, {prop.country}</p>
         <p className="text-white text-xs sm:text-sm mt-1">
@@ -119,7 +172,7 @@ function PropertyCard({ prop }: { prop: Property }) {
           <span className="text-slate-400 font-normal"> / night</span>
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -129,13 +182,13 @@ function PropertyRow({ title, properties, loading }: { title: string; properties
   if (loading) {
     return (
       <div className="px-4 sm:px-6 mb-10">
-        <div className="h-5 w-48 bg-white/10 rounded mb-3 animate-pulse" />
+        <div className="h-5 w-48 shimmer rounded mb-3" />
         <div className="flex gap-3 overflow-hidden">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="flex-shrink-0 w-[48vw] sm:w-[38vw] md:w-[220px]">
-              <div className="aspect-square rounded-xl bg-white/10 animate-pulse mb-2" />
-              <div className="h-3 bg-white/10 rounded animate-pulse mb-1" />
-              <div className="h-3 w-2/3 bg-white/10 rounded animate-pulse" />
+              <div className="aspect-square rounded-xl shimmer mb-2" />
+              <div className="h-3 shimmer rounded mb-1" />
+              <div className="h-3 w-2/3 shimmer rounded" />
             </div>
           ))}
         </div>
@@ -146,7 +199,13 @@ function PropertyRow({ title, properties, loading }: { title: string; properties
   if (!properties || properties.length === 0) return null;
 
   return (
-    <div className="mb-10">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.6 }}
+      className="mb-10"
+    >
       <div className="flex justify-between items-center px-4 sm:px-6 mb-3">
         <h3 className="text-white text-base sm:text-lg font-bold">{title}</h3>
         <div className="flex items-center gap-2">
@@ -165,7 +224,7 @@ function PropertyRow({ title, properties, loading }: { title: string; properties
           </div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -201,7 +260,6 @@ export default function Homepage() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [destination, setDestination] = useState("");
   const [nairobiProps, setNairobiProps] = useState<Property[]>([]);
   const [coastProps, setCoastProps] = useState<Property[]>([]);
   const [upcountryProps, setUpcountryProps] = useState<Property[]>([]);
@@ -268,11 +326,9 @@ export default function Homepage() {
             <a href="/contact" className="flex items-center gap-1.5 hover:text-amber-500 transition-colors"><Mail size={14} /> Contact</a>
           </div>
           <div className="hidden md:block">
-            <a href={whatsappLink()} target="_blank" rel="noopener noreferrer">
-              <button className="bg-gradient-to-br from-[#25D366] to-[#128C7E] hover:brightness-110 text-white font-semibold px-5 py-2.5 rounded-xl text-sm flex items-center gap-2 shadow-[0_4px_14px_rgba(37,211,102,0.35)] ring-1 ring-white/10 transition-all">
-                <WhatsAppIcon size={16} /> Chat With Us
-              </button>
-            </a>
+            <WhatsAppCTA className="bg-gradient-to-br from-[#25D366] to-[#128C7E] hover:brightness-110 hover:shadow-[0_0_16px_rgba(37,211,102,0.5)] text-white font-semibold px-5 py-2.5 rounded-xl text-sm flex items-center gap-2 shadow-[0_4px_14px_rgba(37,211,102,0.35)] ring-1 ring-white/10 transition-all">
+              <WhatsAppIcon size={16} className="wa-icon-slide" /> Chat With Us
+            </WhatsAppCTA>
           </div>
           <button className="md:hidden text-white p-1" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -291,11 +347,9 @@ export default function Homepage() {
                 <Icon size={16} /> {label}
               </a>
             ))}
-            <a href={whatsappLink()} target="_blank" rel="noopener noreferrer">
-              <button className="mt-1 w-full bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm shadow-[0_4px_14px_rgba(37,211,102,0.35)] ring-1 ring-white/10">
-                <WhatsAppIcon size={16} /> Chat With Us
-              </button>
-            </a>
+            <WhatsAppCTA className="mt-1 w-full bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm shadow-[0_4px_14px_rgba(37,211,102,0.35)] ring-1 ring-white/10">
+              <WhatsAppIcon size={16} className="wa-icon-slide" /> Chat With Us
+            </WhatsAppCTA>
           </div>
         )}
       </nav>
@@ -307,59 +361,38 @@ export default function Homepage() {
           <div className="absolute inset-0 bg-gradient-to-b from-[#0B1020]/85 via-[#0B1020]/50 to-[#0B1020]" />
         </div>
 
+        {/* ambient floating glow orbs */}
+        <div className="absolute -top-10 -left-10 w-64 h-64 rounded-full bg-blue-600/20 blur-[80px] float-orb-1 pointer-events-none" />
+        <div className="absolute top-1/3 -right-10 w-56 h-56 rounded-full bg-amber-500/15 blur-[80px] float-orb-2 pointer-events-none" />
+
         <div className="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-6 text-center pt-20">
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }} className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-4 leading-tight">
-           Your Perfect 
- <br />
-            <span className="text-blue-500">Stay</span> Starts <span className="text-amber-500">Here</span>
+          <motion.h1
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-4 leading-tight"
+          >
+            Your Perfect <br />
+            <span className="text-blue-500">Stay</span> Starts{" "}
+            <span className="shimmer-text">Here</span>
           </motion.h1>
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3, duration: 0.7 }} className="text-sm sm:text-base md:text-lg text-slate-300 mb-7 max-w-xl mx-auto">
-           Discover beautifully designed apartments and exceptional hospitality, all in one place.
+          <motion.p
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="text-sm sm:text-base md:text-lg text-slate-300 mb-7 max-w-xl mx-auto"
+          >
+            Verified homes, villas & apartments — from Nairobi to the coast.
           </motion.p>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.7 }} className="bg-[#131B30]/70 backdrop-blur-xl border border-white/10 rounded-2xl p-3 max-w-3xl mx-auto shadow-2xl">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
-              <div className="flex flex-col gap-1 bg-white/10 rounded-xl px-3 py-2.5 col-span-2 md:col-span-1">
-                <span className="text-[9px] font-bold tracking-widest text-slate-400 uppercase">Destination</span>
-                <div className="flex items-center gap-2">
-                  <MapPin size={13} className="text-blue-400 shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Where to?"
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                    className="bg-transparent outline-none text-white placeholder:text-slate-500 text-xs w-full"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col gap-1 bg-white/10 rounded-xl px-3 py-2.5">
-                <span className="text-[9px] font-bold tracking-widest text-slate-400 uppercase">Check-In</span>
-                <div className="flex items-center gap-2">
-                  <Calendar size={13} className="text-blue-400 shrink-0" />
-                  <input type="date" className="bg-transparent outline-none text-slate-500 text-xs w-full cursor-pointer" />
-                </div>
-              </div>
-              <div className="flex flex-col gap-1 bg-white/10 rounded-xl px-3 py-2.5">
-                <span className="text-[9px] font-bold tracking-widest text-slate-400 uppercase">Check-Out</span>
-                <div className="flex items-center gap-2">
-                  <Calendar size={13} className="text-blue-400 shrink-0" />
-                  <input type="date" className="bg-transparent outline-none text-slate-500 text-xs w-full cursor-pointer" />
-                </div>
-              </div>
-              <div className="flex flex-col gap-1 bg-white/10 rounded-xl px-3 py-2.5">
-                <span className="text-[9px] font-bold tracking-widest text-slate-400 uppercase">Guests</span>
-                <div className="flex items-center gap-2">
-                  <Users size={13} className="text-blue-400 shrink-0" />
-                  <input type="number" min={1} max={20} placeholder="1" className="bg-transparent outline-none text-slate-500 text-xs w-full" />
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => router.push(`/explore?destination=${destination}`)}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all text-sm active:scale-[0.99]"
-            >
-              <Search size={15} /> Search Properties
-            </button>
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <WhatsAppCTA className="bg-gradient-to-br from-[#25D366] to-[#128C7E] hover:brightness-110 hover:shadow-[0_0_24px_rgba(37,211,102,0.5)] text-white px-8 py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-[0_6px_20px_rgba(37,211,102,0.4)] ring-1 ring-white/10 mx-auto transition-all">
+              <WhatsAppIcon size={18} className="wa-icon-slide" /> Chat on WhatsApp
+            </WhatsAppCTA>
           </motion.div>
         </div>
       </section>
@@ -380,10 +413,16 @@ export default function Homepage() {
       {/* FEATURES */}
       <section className="py-14 border-t border-white/5" id="about">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-10"
+          >
             <h2 className="text-amber-500 font-bold uppercase tracking-wider text-xs mb-2">The {SITE_NAME} Promise</h2>
             <p className="text-2xl sm:text-3xl font-bold">Unrivaled Excellence in Every Stay</p>
-          </div>
+          </motion.div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { icon: ShieldCheck, title: 'Verified Properties', desc: 'Every home inspected.' },
@@ -391,11 +430,19 @@ export default function Homepage() {
               { icon: MessageCircle, title: 'Direct WhatsApp Contact', desc: 'Quick replies, anytime.' },
               { icon: Award, title: 'Trusted Service', desc: 'Real feedback from guests.' },
             ].map((f, i) => (
-              <div key={i} className="p-4 sm:p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-all">
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+                whileHover={{ y: -4 }}
+                className="p-4 sm:p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-amber-500/20 hover:shadow-[0_10px_30px_rgba(245,158,11,0.08)] transition-all"
+              >
                 <f.icon className="text-amber-500 size-6 sm:size-8 mb-3" />
                 <h4 className="text-sm sm:text-base font-bold mb-1">{f.title}</h4>
                 <p className="text-slate-400 text-xs hidden sm:block">{f.desc}</p>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -403,7 +450,13 @@ export default function Homepage() {
 
       {/* CONTACT CTA */}
       <section className="py-10 px-4 sm:px-6" id="contact">
-        <div className="max-w-7xl mx-auto relative rounded-2xl sm:rounded-[2.5rem] overflow-hidden min-h-[220px] sm:min-h-[320px]">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.6 }}
+          className="max-w-7xl mx-auto relative rounded-2xl sm:rounded-[2.5rem] overflow-hidden min-h-[220px] sm:min-h-[320px]"
+        >
           <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80" className="absolute inset-0 w-full h-full object-cover" alt="Contact" loading="lazy" />
           <div className="absolute inset-0 bg-gradient-to-r from-blue-950/95 to-[#0B1020]/20" />
           <div className="relative z-10 py-12 sm:py-20 px-6 sm:px-16 max-w-lg">
@@ -411,17 +464,21 @@ export default function Homepage() {
             <p className="text-xs sm:text-sm text-slate-200 mb-6 leading-relaxed">
               Message us on WhatsApp to check availability and book your stay directly.
             </p>
-            <a href={whatsappLink()} target="_blank" rel="noopener noreferrer">
-              <button className="bg-gradient-to-br from-[#25D366] to-[#128C7E] hover:brightness-110 text-white px-6 py-3 rounded-xl font-bold transition-all text-sm flex items-center gap-2 shadow-[0_6px_20px_rgba(37,211,102,0.4)] ring-1 ring-white/10">
-                <WhatsAppIcon size={18} /> Chat on WhatsApp
-              </button>
-            </a>
+            <WhatsAppCTA className="bg-gradient-to-br from-[#25D366] to-[#128C7E] hover:brightness-110 hover:shadow-[0_0_24px_rgba(37,211,102,0.5)] text-white px-6 py-3 rounded-xl font-bold transition-all text-sm flex items-center gap-2 shadow-[0_6px_20px_rgba(37,211,102,0.4)] ring-1 ring-white/10">
+              <WhatsAppIcon size={18} className="wa-icon-slide" /> Chat on WhatsApp
+            </WhatsAppCTA>
           </div>
-        </div>
+        </motion.div>
       </section>
 
       {/* FOOTER */}
-      <footer className="mt-16 pt-16 pb-8 border-t border-white/5 bg-[#070B16]">
+      <motion.footer
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true, margin: "-40px" }}
+        transition={{ duration: 0.6 }}
+        className="mt-16 pt-16 pb-8 border-t border-white/5 bg-[#070B16]"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
@@ -467,7 +524,7 @@ export default function Homepage() {
             <p>Designed for modern travel in Kenya.</p>
           </div>
         </div>
-      </footer>
+      </motion.footer>
 
       {/* FLOATING WHATSAPP BUTTON */}
       <a
@@ -478,10 +535,76 @@ export default function Homepage() {
         className="group fixed bottom-6 right-6 z-50 flex items-center justify-center"
       >
         <span className="absolute inline-flex h-full w-full rounded-full bg-[#25D366] opacity-40 animate-ping" />
-        <span className="relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-[#25D366] to-[#128C7E] shadow-[0_8px_24px_rgba(37,211,102,0.45)] ring-2 ring-white/20 group-hover:scale-110 group-active:scale-95 transition-transform">
+        <span className="relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-[#25D366] to-[#128C7E] shadow-[0_8px_24px_rgba(37,211,102,0.45)] ring-2 ring-white/20 group-hover:shadow-[0_0_30px_rgba(37,211,102,0.7)] group-hover:scale-110 group-active:scale-95 transition-all duration-300">
           <WhatsAppIcon size={30} className="text-white" />
         </span>
       </a>
+
+      {/* Custom keyframe animations used across this page */}
+      <style jsx global>{`
+        @keyframes shimmerSweep {
+          0% { background-position: -400px 0; }
+          100% { background-position: 400px 0; }
+        }
+        .shimmer {
+          background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.06) 25%,
+            rgba(255, 255, 255, 0.14) 37%,
+            rgba(255, 255, 255, 0.06) 63%
+          );
+          background-size: 800px 100%;
+          animation: shimmerSweep 1.6s ease-in-out infinite;
+        }
+
+        @keyframes shimmerText {
+          0% { background-position: 0% center; }
+          100% { background-position: 200% center; }
+        }
+        .shimmer-text {
+          background: linear-gradient(90deg, #f59e0b, #fde68a, #f59e0b);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          animation: shimmerText 3s linear infinite;
+        }
+
+        @keyframes floatOrb1 {
+          0%, 100% { transform: translate(0, 0); }
+          50% { transform: translate(24px, 30px); }
+        }
+        @keyframes floatOrb2 {
+          0%, 100% { transform: translate(0, 0); }
+          50% { transform: translate(-24px, -20px); }
+        }
+        .float-orb-1 { animation: floatOrb1 10s ease-in-out infinite; }
+        .float-orb-2 { animation: floatOrb2 12s ease-in-out infinite; }
+
+        @keyframes rippleExpand {
+          0% { transform: scale(0); opacity: 0.5; }
+          100% { transform: scale(3.2); opacity: 0; }
+        }
+        .wa-ripple {
+          position: absolute;
+          width: 40px;
+          height: 40px;
+          margin-left: -20px;
+          margin-top: -20px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.6);
+          pointer-events: none;
+          animation: rippleExpand 0.6s ease-out forwards;
+        }
+
+        .wa-icon-slide {
+          transition: transform 0.25s ease;
+        }
+        button:hover .wa-icon-slide,
+        a:hover .wa-icon-slide {
+          transform: translateX(3px);
+        }
+      `}</style>
     </div>
   );
 }
