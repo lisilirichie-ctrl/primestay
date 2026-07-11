@@ -1,248 +1,30 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
-import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import {
   MapPin, ShieldCheck, MessageCircle, Award,
-  ChevronRight, ChevronLeft, Menu, X,
-  Home, Compass, Info, Mail
-
-} from 'lucide-react';
+  Menu, X, Home, Compass, Info, Mail,
+} from "lucide-react";
 import { FaFacebookF, FaInstagram, FaLinkedinIn } from "react-icons/fa";
+import PropertyCard from "@/components/PropertyCard";
+import {
+  Property, WhatsAppCTA, WhatsAppIcon, whatsappLink, SITE_NAME,
+} from "@/components/whatsapp";
 
-// TODO: weka namba halisi ya WhatsApp ya client hapa (format: 2547XXXXXXXX, bila +)
-const WHATSAPP_NUMBER = "2547XXXXXXXX";
-const SITE_NAME = "TuliaStays"; // TODO: badilisha na jina halisi la brand
-
-// Real WhatsApp glyph (the actual phone-in-bubble logo), not a generic chat icon
-function WhatsAppIcon({ className = "", size = 20 }: { className?: string; size?: number }) {
-  return (
-    <svg
-      viewBox="0 0 32 32"
-      width={size}
-      height={size}
-      className={className}
-      fill="currentColor"
-    >
-      <path d="M16.004 3C9.372 3 4 8.373 4 15.005c0 2.373.664 4.588 1.816 6.474L4 29l7.72-1.775a11.94 11.94 0 0 0 4.284.787h.004c6.632 0 12.004-5.373 12.004-12.005C28.012 8.373 22.64 3 16.004 3zm0 21.79h-.003a9.75 9.75 0 0 1-4.972-1.363l-.357-.212-3.61.83.836-3.518-.232-.362a9.744 9.744 0 0 1-1.494-5.16c0-5.39 4.39-9.778 9.796-9.778 2.617 0 5.077 1.02 6.925 2.87a9.72 9.72 0 0 1 2.867 6.918c-.002 5.39-4.392 9.775-9.756 9.775zm5.362-7.316c-.294-.148-1.74-.858-2.01-.957-.27-.098-.466-.147-.663.148-.196.295-.76.957-.932 1.153-.172.196-.343.221-.637.074-.294-.148-1.24-.457-2.362-1.457-.873-.779-1.462-1.741-1.634-2.036-.171-.295-.018-.454.13-.601.133-.133.294-.344.441-.516.147-.172.196-.295.294-.492.098-.196.049-.369-.024-.516-.074-.148-.663-1.6-.909-2.192-.24-.577-.483-.499-.663-.508l-.564-.01c-.196 0-.516.074-.786.369-.27.295-1.03 1.006-1.03 2.454s1.055 2.848 1.202 3.044c.147.196 2.077 3.172 5.032 4.448.703.303 1.251.484 1.679.62.705.224 1.347.192 1.854.117.566-.084 1.74-.712 1.985-1.4.245-.688.245-1.278.172-1.4-.074-.123-.27-.196-.564-.344z" />
-    </svg>
-  );
-}
-
-type PropertyImage = {
-  image_url: string;
-  is_primary: boolean;
-};
-
-type Property = {
-  id: string;
-  title: string;
-  city: string;
-  country: string;
-  property_type: string;
-  price_per_night: number;
-  property_images: PropertyImage[];
-};
-
-// City groups — case insensitive
-const NAIROBI_CITIES = ["nairobi", "westlands", "kilimani", "karen", "parklands", "runda", "lavington", "gigiri", "kileleshwa", "upperhill", "cbd"];
-const COAST_CITIES = ["mombasa", "diani", "malindi", "watamu", "nyali", "bamburi", "kilifi", "kwale", "lamu", "ukunda", "msambweni", "kikambala"];
-
-function isNairobi(p: Property) {
-  const text = `${p.city}`.toLowerCase();
-  return NAIROBI_CITIES.some(c => text.includes(c));
-}
-
-function isCoast(p: Property) {
-  const text = `${p.city}`.toLowerCase();
-  return COAST_CITIES.some(c => text.includes(c));
-}
-
-function getPrimaryImage(images: PropertyImage[] | undefined): string {
-  if (!images || images.length === 0) {
-    return 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=600&q=80';
-  }
-  const primary = images.find((img) => img.is_primary);
-  return (primary || images[0]).image_url;
-}
-
-function whatsappLink(property?: Property): string {
-  let message = `Habari, nataka kuuliza kuhusu properties zenu kwenye ${SITE_NAME}.`;
-  if (property) {
-    message = `Habari, nina interest na hii property: *${property.title}* (${property.city}) - KSh ${property.price_per_night.toLocaleString()}/night. Naomba maelezo zaidi na availability.`;
-  }
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-}
-
-// A WhatsApp button with a ripple + glow micro-interaction before the chat opens.
-// Works as any button: pass children for full CTA style, or just an icon for compact use.
-function WhatsAppCTA({
-  property,
-  className = "",
-  children,
-}: {
-  property?: Property;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
-
-  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const id = Date.now();
-    setRipples((prev) => [...prev, { id, x: e.clientX - rect.left, y: e.clientY - rect.top }]);
-    setTimeout(() => setRipples((prev) => prev.filter((r) => r.id !== id)), 600);
-
-    // slight delay so the ripple + glow is visible before the tab opens
-    setTimeout(() => {
-      window.open(whatsappLink(property), "_blank", "noopener,noreferrer");
-    }, 220);
-  };
-
-  return (
-    <button
-      onClick={handleClick}
-      className={`relative overflow-hidden isolate ${className}`}
-    >
-      {ripples.map((r) => (
-        <span
-          key={r.id}
-          className="wa-ripple"
-          style={{ left: r.x, top: r.y }}
-        />
-      ))}
-      {children}
-    </button>
-  );
-}
-
-function useScrollRow() {
-  const ref = useRef<HTMLDivElement>(null);
-  const scroll = (dir: 'left' | 'right') => {
-    if (ref.current) {
-      const card = ref.current.querySelector('[data-card]') as HTMLElement;
-      const amount = card ? card.offsetWidth + 12 : 260;
-      ref.current.scrollBy({ left: dir === 'right' ? amount : -amount, behavior: 'smooth' });
-    }
-  };
-  return { ref, scroll };
-}
-
-function PropertyCard({ prop }: { prop: Property }) {
-  const router = useRouter();
-  const imgSrc = getPrimaryImage(prop.property_images);
-
-  return (
-    <motion.div
-      data-card
-      whileHover={{ y: -6 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      onClick={() => router.push(`/property/${prop.id}`)}
-      className="flex-shrink-0 w-[48vw] sm:w-[38vw] md:w-[220px] lg:w-[240px] cursor-pointer group"
-    >
-      {/* gradient border wrapper */}
-      <div className="p-[1.5px] rounded-xl bg-gradient-to-br from-amber-500/30 via-white/10 to-blue-500/30 group-hover:from-amber-500/60 group-hover:to-blue-500/60 transition-colors duration-300 shadow-lg group-hover:shadow-[0_10px_30px_rgba(245,158,11,0.15)]">
-        <div className="relative w-full aspect-square rounded-[10px] overflow-hidden">
-          <img
-            src={imgSrc}
-            alt={prop.title}
-            className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
-            loading="lazy"
-          />
-          {/* glass reflection sheen */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/5 pointer-events-none" />
-          <WhatsAppCTA
-            property={prop}
-            className="absolute top-2 right-2 flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-[#25D366] to-[#128C7E] shadow-[0_2px_10px_rgba(37,211,102,0.5)] ring-1 ring-white/20 hover:scale-110 hover:shadow-[0_0_18px_rgba(37,211,102,0.7)] active:scale-95 transition-all"
-          >
-            <WhatsAppIcon size={17} className="text-white" />
-          </WhatsAppCTA>
-        </div>
-      </div>
-      <div className="mt-2">
-        <p className="text-white text-xs sm:text-sm font-semibold leading-tight truncate">{prop.title}</p>
-        <p className="text-slate-400 text-xs mt-0.5 truncate">{prop.city}, {prop.country}</p>
-        <p className="text-white text-xs sm:text-sm mt-1">
-          <span className="font-bold">KSh {prop.price_per_night?.toLocaleString()}</span>
-          <span className="text-slate-400 font-normal"> / night</span>
-        </p>
-      </div>
-    </motion.div>
-  );
-}
-
-function PropertyRow({ title, properties, loading }: { title: string; properties: Property[]; loading?: boolean }) {
-  const { ref, scroll } = useScrollRow();
-
-  if (loading) {
-    return (
-      <div className="px-4 sm:px-6 mb-10">
-        <div className="h-5 w-48 shimmer rounded mb-3" />
-        <div className="flex gap-3 overflow-hidden">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="flex-shrink-0 w-[48vw] sm:w-[38vw] md:w-[220px]">
-              <div className="aspect-square rounded-xl shimmer mb-2" />
-              <div className="h-3 shimmer rounded mb-1" />
-              <div className="h-3 w-2/3 shimmer rounded" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!properties || properties.length === 0) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.6 }}
-      className="mb-10"
-    >
-      <div className="flex justify-between items-center px-4 sm:px-6 mb-3">
-        <h3 className="text-white text-base sm:text-lg font-bold">{title}</h3>
-        <div className="flex items-center gap-2">
-          <button onClick={() => scroll('left')} className="hidden sm:flex w-8 h-8 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 items-center justify-center transition-all active:scale-90">
-            <ChevronLeft size={15} />
-          </button>
-          <button onClick={() => scroll('right')} className="hidden sm:flex w-8 h-8 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 items-center justify-center transition-all active:scale-90">
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      </div>
-      <div ref={ref} className="flex gap-3 overflow-x-auto scrollbar-hide px-4 sm:px-6 pb-2 snap-x snap-mandatory" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {properties.map((prop) => (
-          <div key={prop.id} className="snap-start">
-            <PropertyCard prop={prop} />
-          </div>
-        ))}
-      </div>
-    </motion.div>
-  );
-}
+// TODO: badilisha na jina halisi la host/admin
+const HOST_NAME = "Brian";
+const HOST_PHOTO = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=400&q=80";
 
 const footerLinks = [
   {
     title: "Company",
     links: [
-      { name: "About Us", href: "/about" },
-      { name: "Explore Properties", href: "/explore" },
-      { name: "Contact Us", href: "/contact" },
-    ],
-  },
-  {
-    title: "Support",
-    links: [
-      { name: "Help Center", href: "/help" },
-      { name: "FAQs", href: "/faqs" },
-      { name: "Safety Center", href: "/safety" },
+      { name: "About", href: "#host" },
+      { name: "Stays", href: "#stays" },
+      { name: "Contact", href: "#contact" },
     ],
   },
   {
@@ -250,7 +32,6 @@ const footerLinks = [
     links: [
       { name: "Privacy Policy", href: "/privacy" },
       { name: "Terms of Service", href: "/terms" },
-      { name: "Cookie Policy", href: "/cookies" },
     ],
   },
 ];
@@ -260,40 +41,48 @@ export default function Homepage() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [nairobiProps, setNairobiProps] = useState<Property[]>([]);
-  const [coastProps, setCoastProps] = useState<Property[]>([]);
-  const [upcountryProps, setUpcountryProps] = useState<Property[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const logoClickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Single click on logo -> go home. Double click -> discreet admin access.
+  const handleLogoClick = () => {
+    if (logoClickTimeout.current) {
+      clearTimeout(logoClickTimeout.current);
+      logoClickTimeout.current = null;
+      return; // this click was part of a double-click, handled by onDoubleClick
+    }
+    logoClickTimeout.current = setTimeout(() => {
+      router.push("/");
+      logoClickTimeout.current = null;
+    }, 250);
+  };
+
+  const handleLogoDoubleClick = () => {
+    if (logoClickTimeout.current) {
+      clearTimeout(logoClickTimeout.current);
+      logoClickTimeout.current = null;
+    }
+    router.push("/auth");
+  };
 
   useEffect(() => {
     const loadProperties = async () => {
       try {
         const { data, error } = await supabase
-          .from('properties')
-          .select(`
-            id,
-            title,
-            city,
-            country,
-            property_type,
-            price_per_night,
-            property_images ( image_url, is_primary )
-          `)
-          .eq('status', 'active')
-          .order('created_at', { ascending: false });
+          .from("properties")
+          .select(
+            `id, title, city, country, property_type, price_per_night, property_images ( image_url, is_primary )`
+          )
+          .eq("status", "active")
+          .order("created_at", { ascending: false });
 
-        if (error) { console.error('Supabase error:', error.message); return; }
-
-        if (data) {
-          const nairobi = data.filter((p) => isNairobi(p as Property));
-          const coast = data.filter((p) => !isNairobi(p as Property) && isCoast(p as Property));
-          const upcountry = data.filter((p) => !isNairobi(p as Property) && !isCoast(p as Property));
-
-          setNairobiProps(nairobi as Property[]);
-          setCoastProps(coast as Property[]);
-          setUpcountryProps(upcountry as Property[]);
+        if (error) {
+          console.error("Supabase error:", error.message);
+          return;
         }
+        setProperties((data as Property[]) || []);
       } catch (err) {
-        console.error('Load error:', err);
+        console.error("Load error:", err);
       } finally {
         setLoading(false);
       }
@@ -303,31 +92,48 @@ export default function Homepage() {
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   return (
     <div className="bg-[#0B1020] min-h-screen text-white font-sans overflow-x-hidden">
-
       {/* NAVBAR */}
-      <nav className={`fixed w-full top-0 left-0 z-[100] transition-all duration-500 ${scrolled ? 'bg-[#0B1020]/95 backdrop-blur-md py-3 border-b border-white/10' : 'bg-[#0B1020]/40 backdrop-blur-sm py-4'}`}>
+      <nav
+        className={`fixed w-full top-0 left-0 z-[100] transition-all duration-500 ${
+          scrolled
+            ? "bg-[#0B1020]/95 backdrop-blur-md py-3 border-b border-white/10"
+            : "bg-[#0B1020]/40 backdrop-blur-sm py-4"
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex justify-between items-center">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push('/')}>
+          <div
+            className="flex items-center gap-2 cursor-pointer select-none"
+            onClick={handleLogoClick}
+            onDoubleClick={handleLogoDoubleClick}
+          >
             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-amber-500 rounded-xl flex items-center justify-center font-bold text-white italic shadow-lg text-sm">
               {SITE_NAME.slice(0, 2).toUpperCase()}
             </div>
             <span className="text-xl font-extrabold tracking-tight text-white">{SITE_NAME}</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
-            <a href="/" className="flex items-center gap-1.5 hover:text-amber-500 transition-colors text-white"><Home size={14} /> Home</a>
-            <a href="/explore" className="flex items-center gap-1.5 hover:text-amber-500 transition-colors"><Compass size={14} /> Explore</a>
-            <a href="/about" className="flex items-center gap-1.5 hover:text-amber-500 transition-colors"><Info size={14} /> About</a>
-            <a href="/contact" className="flex items-center gap-1.5 hover:text-amber-500 transition-colors"><Mail size={14} /> Contact</a>
+            <a href="/" className="flex items-center gap-1.5 hover:text-amber-500 transition-colors text-white">
+              <Home size={14} /> Home
+            </a>
+            <a href="#stays" className="flex items-center gap-1.5 hover:text-amber-500 transition-colors">
+              <Compass size={14} /> Stays
+            </a>
+            <a href="#host" className="flex items-center gap-1.5 hover:text-amber-500 transition-colors">
+              <Info size={14} /> About
+            </a>
+            <a href="#contact" className="flex items-center gap-1.5 hover:text-amber-500 transition-colors">
+              <Mail size={14} /> Contact
+            </a>
           </div>
           <div className="hidden md:block">
             <WhatsAppCTA className="bg-gradient-to-br from-[#25D366] to-[#128C7E] hover:brightness-110 hover:shadow-[0_0_16px_rgba(37,211,102,0.5)] text-white font-semibold px-5 py-2.5 rounded-xl text-sm flex items-center gap-2 shadow-[0_4px_14px_rgba(37,211,102,0.35)] ring-1 ring-white/10 transition-all">
-              <WhatsAppIcon size={16} className="wa-icon-slide" /> Chat With Us
+              <WhatsAppIcon size={16} className="wa-icon-slide" /> Chat With Me
             </WhatsAppCTA>
           </div>
           <button className="md:hidden text-white p-1" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -338,51 +144,65 @@ export default function Homepage() {
         {mobileMenuOpen && (
           <div className="md:hidden bg-[#0B1020]/98 backdrop-blur-xl border-t border-white/10 px-4 py-5 flex flex-col gap-4">
             {[
-              { icon: Home, label: 'Home', href: '/' },
-              { icon: Compass, label: 'Explore', href: '/explore' },
-              { icon: Info, label: 'About', href: '/about' },
-              { icon: Mail, label: 'Contact', href: '/contact' },
+              { icon: Home, label: "Home", href: "/" },
+              { icon: Compass, label: "Stays", href: "#stays" },
+              { icon: Info, label: "About", href: "#host" },
+              { icon: Mail, label: "Contact", href: "#contact" },
             ].map(({ icon: Icon, label, href }) => (
-              <a key={label} href={href} className="flex items-center gap-3 text-slate-300 hover:text-amber-500 transition-colors py-1 text-sm font-medium" onClick={() => setMobileMenuOpen(false)}>
+              <a
+                key={label}
+                href={href}
+                className="flex items-center gap-3 text-slate-300 hover:text-amber-500 transition-colors py-1 text-sm font-medium"
+                onClick={() => setMobileMenuOpen(false)}
+              >
                 <Icon size={16} /> {label}
               </a>
             ))}
             <WhatsAppCTA className="mt-1 w-full bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm shadow-[0_4px_14px_rgba(37,211,102,0.35)] ring-1 ring-white/10">
-              <WhatsAppIcon size={16} className="wa-icon-slide" /> Chat With Us
+              <WhatsAppIcon size={16} className="wa-icon-slide" /> Chat With Me
             </WhatsAppCTA>
           </div>
         )}
       </nav>
 
       {/* HERO */}
-      <section className="relative h-[65vh] min-h-[420px] sm:h-[75vh] sm:min-h-[550px] flex items-center justify-center overflow-hidden">
+      <section className="relative h-[60vh] min-h-[400px] sm:h-[65vh] sm:min-h-[480px] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1920&q=80" className="w-full h-full object-cover" alt={`${SITE_NAME} Hero`} />
+          <img
+            src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1920&q=80"
+            className="w-full h-full object-cover"
+            alt={`${SITE_NAME} Hero`}
+          />
           <div className="absolute inset-0 bg-gradient-to-b from-[#0B1020]/85 via-[#0B1020]/50 to-[#0B1020]" />
         </div>
 
-        {/* ambient floating glow orbs */}
         <div className="absolute -top-10 -left-10 w-64 h-64 rounded-full bg-blue-600/20 blur-[80px] float-orb-1 pointer-events-none" />
         <div className="absolute top-1/3 -right-10 w-56 h-56 rounded-full bg-amber-500/15 blur-[80px] float-orb-2 pointer-events-none" />
 
-        <div className="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-6 text-center pt-20">
+        <div className="relative z-10 w-full max-w-3xl mx-auto px-4 sm:px-6 text-center pt-20">
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-amber-500 text-xs font-bold uppercase tracking-widest mb-3"
+          >
+            Personally managed by {HOST_NAME}
+          </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-4 leading-tight"
+            className="text-3xl sm:text-5xl font-extrabold tracking-tight mb-4 leading-tight"
           >
-            Your Perfect <br />
-            <span className="text-blue-500">Stay</span> Starts{" "}
-            <span className="shimmer-text">Here</span>
+            Handpicked Stays, <span className="shimmer-text">Booked Directly</span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="text-sm sm:text-base md:text-lg text-slate-300 mb-7 max-w-xl mx-auto"
+            className="text-sm sm:text-base text-slate-300 mb-7 max-w-xl mx-auto"
           >
-            Verified homes, villas & apartments — from Nairobi to the coast.
+            No middlemen, no booking fees — just message me on WhatsApp and I'll sort you out.
           </motion.p>
 
           <motion.div
@@ -391,27 +211,86 @@ export default function Homepage() {
             transition={{ delay: 0.45, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
             <WhatsAppCTA className="bg-gradient-to-br from-[#25D366] to-[#128C7E] hover:brightness-110 hover:shadow-[0_0_24px_rgba(37,211,102,0.5)] text-white px-8 py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-[0_6px_20px_rgba(37,211,102,0.4)] ring-1 ring-white/10 mx-auto transition-all">
-              <WhatsAppIcon size={18} className="wa-icon-slide" /> Chat on WhatsApp
+              <WhatsAppIcon size={18} className="wa-icon-slide" /> Message {HOST_NAME}
             </WhatsAppCTA>
           </motion.div>
         </div>
       </section>
 
-      {/* PROPERTY ROWS */}
-      <div className="pt-4 pb-16">
-        <PropertyRow title="Popular homes in Nairobi" properties={nairobiProps} loading={loading} />
-        <PropertyRow title="Coastal getaways — Mombasa & Diani" properties={coastProps} loading={loading} />
-        <PropertyRow title="Upcountry stays" properties={upcountryProps} loading={loading} />
-        {!loading && nairobiProps.length === 0 && coastProps.length === 0 && upcountryProps.length === 0 && (
-          <div className="text-center py-20 px-6">
-            <p className="text-slate-400 text-lg mb-2">No properties yet</p>
-            <p className="text-slate-600 text-sm">Check back soon — new listings are added regularly.</p>
+      {/* MEET THE HOST */}
+      <section className="py-14 px-4 sm:px-6" id="host">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.6 }}
+          className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-6 bg-white/[0.03] border border-white/10 rounded-2xl p-6 sm:p-8"
+        >
+          <img
+            src={HOST_PHOTO}
+            alt={HOST_NAME}
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover ring-2 ring-amber-500/40 shrink-0"
+          />
+          <div className="text-center sm:text-left">
+            <p className="text-amber-500 text-xs font-bold uppercase tracking-widest mb-1">Meet Your Host</p>
+            <h3 className="text-xl font-bold mb-2">Hi, I'm {HOST_NAME} </h3>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              I personally manage every property listed here — from cleaning to check-in.
+              When you message me, you're talking directly to the person who knows the place best.
+            </p>
           </div>
-        )}
-      </div>
+        </motion.div>
+      </section>
 
-      {/* FEATURES */}
-      <section className="py-14 border-t border-white/5" id="about">
+      {/* ALL STAYS */}
+      <section className="py-6 pb-16 px-4 sm:px-6" id="stays">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.5 }}
+          className="max-w-7xl mx-auto mb-6"
+        >
+          <h2 className="text-xl sm:text-2xl font-bold">Available Stays</h2>
+          <p className="text-slate-400 text-sm mt-1">Every listing here is checked and managed by me personally.</p>
+        </motion.div>
+
+        <div className="max-w-7xl mx-auto">
+          {loading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {[...Array(8)].map((_, i) => (
+                <div key={i}>
+                  <div className="aspect-square rounded-xl shimmer mb-2" />
+                  <div className="h-3 shimmer rounded mb-1" />
+                  <div className="h-3 w-2/3 shimmer rounded" />
+                </div>
+              ))}
+            </div>
+          ) : properties.length === 0 ? (
+            <div className="text-center py-16">
+              <p className="text-slate-400 text-lg mb-2">No stays listed yet</p>
+              <p className="text-slate-600 text-sm">Check back soon — new listings are added regularly.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {properties.map((prop, i) => (
+                <motion.div
+                  key={prop.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{ duration: 0.4, delay: Math.min(i * 0.05, 0.4) }}
+                >
+                  <PropertyCard prop={prop} />
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* WHY BOOK DIRECT */}
+      <section className="py-14 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -420,15 +299,15 @@ export default function Homepage() {
             transition={{ duration: 0.6 }}
             className="text-center mb-10"
           >
-            <h2 className="text-amber-500 font-bold uppercase tracking-wider text-xs mb-2">The {SITE_NAME} Promise</h2>
-            <p className="text-2xl sm:text-3xl font-bold">Unrivaled Excellence in Every Stay</p>
+            <h2 className="text-amber-500 font-bold uppercase tracking-wider text-xs mb-2">Why Book Direct</h2>
+            <p className="text-2xl sm:text-3xl font-bold">No Platform, No Games</p>
           </motion.div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { icon: ShieldCheck, title: 'Verified Properties', desc: 'Every home inspected.' },
-              { icon: MapPin, title: 'Prime Locations', desc: 'Most sought-after spots.' },
-              { icon: MessageCircle, title: 'Direct WhatsApp Contact', desc: 'Quick replies, anytime.' },
-              { icon: Award, title: 'Trusted Service', desc: 'Real feedback from guests.' },
+              { icon: ShieldCheck, title: "Verified by Me", desc: "I inspect every home myself." },
+              { icon: MapPin, title: "Prime Locations", desc: "Handpicked, sought-after spots." },
+              { icon: MessageCircle, title: "Direct Contact", desc: "You're talking to me, not a bot." },
+              { icon: Award, title: "No Hidden Fees", desc: "The price you see is the price you pay." },
             ].map((f, i) => (
               <motion.div
                 key={i}
@@ -455,17 +334,22 @@ export default function Homepage() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.6 }}
-          className="max-w-7xl mx-auto relative rounded-2xl sm:rounded-[2.5rem] overflow-hidden min-h-[220px] sm:min-h-[320px]"
+          className="max-w-7xl mx-auto relative rounded-2xl sm:rounded-[2.5rem] overflow-hidden min-h-[200px] sm:min-h-[280px]"
         >
-          <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80" className="absolute inset-0 w-full h-full object-cover" alt="Contact" loading="lazy" />
+          <img
+            src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80"
+            className="absolute inset-0 w-full h-full object-cover"
+            alt="Contact"
+            loading="lazy"
+          />
           <div className="absolute inset-0 bg-gradient-to-r from-blue-950/95 to-[#0B1020]/20" />
-          <div className="relative z-10 py-12 sm:py-20 px-6 sm:px-16 max-w-lg">
-            <h2 className="text-xl sm:text-3xl font-bold mb-3">Found a Place You Like?</h2>
+          <div className="relative z-10 py-10 sm:py-16 px-6 sm:px-16 max-w-lg">
+            <h2 className="text-xl sm:text-2xl font-bold mb-3">Found a Place You Like?</h2>
             <p className="text-xs sm:text-sm text-slate-200 mb-6 leading-relaxed">
-              Message us on WhatsApp to check availability and book your stay directly.
+              Message me on WhatsApp and I'll confirm availability and help you book.
             </p>
             <WhatsAppCTA className="bg-gradient-to-br from-[#25D366] to-[#128C7E] hover:brightness-110 hover:shadow-[0_0_24px_rgba(37,211,102,0.5)] text-white px-6 py-3 rounded-xl font-bold transition-all text-sm flex items-center gap-2 shadow-[0_6px_20px_rgba(37,211,102,0.4)] ring-1 ring-white/10">
-              <WhatsAppIcon size={18} className="wa-icon-slide" /> Chat on WhatsApp
+              <WhatsAppIcon size={18} className="wa-icon-slide" /> Message {HOST_NAME}
             </WhatsAppCTA>
           </div>
         </motion.div>
@@ -477,10 +361,10 @@ export default function Homepage() {
         whileInView={{ opacity: 1 }}
         viewport={{ once: true, margin: "-40px" }}
         transition={{ duration: 0.6 }}
-        className="mt-16 pt-16 pb-8 border-t border-white/5 bg-[#070B16]"
+        className="mt-8 pt-12 pb-8 border-t border-white/5 bg-[#070B16]"
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
-          <div className="col-span-2 md:col-span-1">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-2 sm:grid-cols-3 gap-8 mb-10">
+          <div className="col-span-2 sm:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center font-bold italic text-xs">
                 {SITE_NAME.slice(0, 2).toUpperCase()}
@@ -488,8 +372,7 @@ export default function Homepage() {
               <span className="text-lg font-bold tracking-tight">{SITE_NAME}</span>
             </div>
             <p className="text-slate-400 text-xs leading-relaxed">
-              Discover verified apartments, villas, and holiday homes across Kenya.
-              Message us directly on WhatsApp to book your stay.
+              Handpicked stays across Kenya, personally managed by {HOST_NAME}.
             </p>
             <div className="flex items-center gap-3 mt-5">
               <a href="#" className="text-slate-400 hover:text-amber-500 transition-colors">
@@ -519,9 +402,9 @@ export default function Homepage() {
           ))}
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 border-t border-white/5 pt-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-3 text-slate-500 text-xs">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 text-slate-500 text-xs">
             <p>© 2026 {SITE_NAME}. All rights reserved.</p>
-            <p>Designed for modern travel in Kenya.</p>
+            <p>Managed by {HOST_NAME} in Kenya.</p>
           </div>
         </div>
       </motion.footer>
@@ -540,23 +423,16 @@ export default function Homepage() {
         </span>
       </a>
 
-      {/* Custom keyframe animations used across this page */}
       <style jsx global>{`
         @keyframes shimmerSweep {
           0% { background-position: -400px 0; }
           100% { background-position: 400px 0; }
         }
         .shimmer {
-          background: linear-gradient(
-            90deg,
-            rgba(255, 255, 255, 0.06) 25%,
-            rgba(255, 255, 255, 0.14) 37%,
-            rgba(255, 255, 255, 0.06) 63%
-          );
+          background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.14) 37%, rgba(255,255,255,0.06) 63%);
           background-size: 800px 100%;
           animation: shimmerSweep 1.6s ease-in-out infinite;
         }
-
         @keyframes shimmerText {
           0% { background-position: 0% center; }
           100% { background-position: 200% center; }
@@ -569,7 +445,6 @@ export default function Homepage() {
           color: transparent;
           animation: shimmerText 3s linear infinite;
         }
-
         @keyframes floatOrb1 {
           0%, 100% { transform: translate(0, 0); }
           50% { transform: translate(24px, 30px); }
@@ -580,7 +455,6 @@ export default function Homepage() {
         }
         .float-orb-1 { animation: floatOrb1 10s ease-in-out infinite; }
         .float-orb-2 { animation: floatOrb2 12s ease-in-out infinite; }
-
         @keyframes rippleExpand {
           0% { transform: scale(0); opacity: 0.5; }
           100% { transform: scale(3.2); opacity: 0; }
@@ -592,18 +466,12 @@ export default function Homepage() {
           margin-left: -20px;
           margin-top: -20px;
           border-radius: 50%;
-          background: rgba(255, 255, 255, 0.6);
+          background: rgba(255,255,255,0.6);
           pointer-events: none;
           animation: rippleExpand 0.6s ease-out forwards;
         }
-
-        .wa-icon-slide {
-          transition: transform 0.25s ease;
-        }
-        button:hover .wa-icon-slide,
-        a:hover .wa-icon-slide {
-          transform: translateX(3px);
-        }
+        .wa-icon-slide { transition: transform 0.25s ease; }
+        button:hover .wa-icon-slide, a:hover .wa-icon-slide { transform: translateX(3px); }
       `}</style>
     </div>
   );
