@@ -981,21 +981,42 @@ function PropertyForm({
           </div>
         )}
 
-        <label
-          onClick={() => fileInputRef.current?.click()}
-          className="cursor-pointer rounded-xl p-5 text-center text-xs transition-colors flex items-center justify-center gap-2"
-          style={{ border: `1px dashed ${C.border}`, color: C.textDim }}
-        >
-          <Upload size={14} />
-          Drop images here, or click to upload
-     
-  <input
+  <label
+  onClick={() => fileInputRef.current?.click()}
+  className="cursor-pointer rounded-xl p-5 text-center flex items-center justify-center"
+  style={{ border: `1px dashed ${C.border}`, color: C.textDim }}
+>
+  <Upload size={14} />
+  <span className="ml-2">
+    {newFiles.length === 0
+      ? "Click to upload your first image"
+      : `${newFiles.length} image${newFiles.length > 1 ? "s" : ""} selected`}
+  </span>
+</label>
+
+{newFiles.length > 0 && (
+  <button
+    type="button"
+    onClick={() => fileInputRef.current?.click()}
+   className="mt-4 flex w-full items-center justify-center rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-400 transition hover:bg-amber-500/20"
+  >
+    + Add Another Image
+  </button>
+)}
+
+<input
+  ref={fileInputRef}
   type="file"
   accept="image/*"
+  className="hidden"
+  onClick={(e) => {
+    (e.currentTarget as HTMLInputElement).value = "";
+  }}
   onChange={handleFileSelect}
 />
-        </label>
-      </div>
+</div>
+        
+      
 
       {error && (
         <p className="mb-4 text-xs rounded-lg px-3 py-2" style={{ backgroundColor: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", color: C.red }}>
