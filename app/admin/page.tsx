@@ -719,10 +719,35 @@ function PropertyForm({
   };
   const removeAmenity = (a: string) => setAmenities((prev) => prev.filter((x) => x !== a));
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const readFileAsDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") resolve(reader.result);
+        else reject(new Error("Unexpected file reader result"));
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    setNewFiles((prev) => [...prev, ...files]);
-    setNewPreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
+    if (files.length === 0) return;
+
+    // allow re-selecting the same file again later (e.g. after removing it)
+    e.target.value = "";
+
+    try {
+      // FileReader (base64 data URLs) is more reliable than URL.createObjectURL
+      // on mobile browsers, especially right after picking a photo from the camera.
+      // Promise.all keeps files and previews in the same order/index.
+      const previews = await Promise.all(files.map(readFileAsDataURL));
+      setNewFiles((prev) => [...prev, ...files]);
+      setNewPreviews((prev) => [...prev, ...previews]);
+    } catch (err) {
+      console.error("Failed to read one or more files for preview:", err);
+    }
   };
 
   const removeNewFile = (index: number) => {
