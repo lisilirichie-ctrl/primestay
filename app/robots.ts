@@ -9,5 +9,6 @@ export default function robots(): MetadataRoute.Robots {
       },
     ],
     sitemap: "https://tuliastays.com/sitemap.xml",
+    host: "https://tuliastays.com",
   };
 }
