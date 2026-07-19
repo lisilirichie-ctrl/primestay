@@ -18,8 +18,11 @@ export const metadata: Metadata = {
     template: "%s | TuliaStays",
   },
   description: "Book handpicked stays directly with TuliaStays.",
-};
 
+  verification: {
+    google: "l0erfvyHtcPz48D0mSWn88cILAUvhY6s8iyFCDasYFQ",
+  },
+};
 export default function RootLayout({
   children,
 }: Readonly<{
