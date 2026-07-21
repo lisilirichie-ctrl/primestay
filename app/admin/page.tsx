@@ -813,6 +813,9 @@ function PropertyForm({
       amenities,
     };
 
+    console.log("PAYLOAD:", payload);
+console.log("AMENITIES:", amenities);
+
     try {
       if (mode === "create") {
         const { data, error: insertError } = await supabase

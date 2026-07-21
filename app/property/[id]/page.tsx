@@ -8,7 +8,26 @@ import {
   Property, WhatsAppCTA, WhatsAppIcon, SITE_NAME,
 } from "@/components/whatsapp";
 import {
-  ArrowLeft, MapPin, Users, BedDouble, Bath, Check, ChevronLeft, ChevronRight,
+  ArrowLeft,
+  MapPin,
+  Users,
+  BedDouble,
+  Bath,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Wifi,
+  Car,
+  ShieldCheck,
+  Tv,
+  Snowflake,
+  UtensilsCrossed,
+  Waves,
+  Laptop,
+  Dumbbell,
+  Shirt,
+  Building,
+  Droplets,
 } from "lucide-react";
 
 export default function PropertyDetailsPage() {
@@ -73,6 +92,25 @@ export default function PropertyDetailsPage() {
 
   const nextImage = () => setActiveImage((i) => (i + 1) % images.length);
   const prevImage = () => setActiveImage((i) => (i - 1 + images.length) % images.length);
+
+  function AmenityIcon({ amenity }: { amenity: string }) {
+  const name = amenity.toLowerCase();
+
+  if (name.includes("wifi")) return <Wifi size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("parking")) return <Car size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("security")) return <ShieldCheck size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("kitchen")) return <UtensilsCrossed size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("tv")) return <Tv size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("air")) return <Snowflake size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("pool")) return <Waves size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("workspace")) return <Laptop size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("gym")) return <Dumbbell size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("washing")) return <Shirt size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("balcony")) return <Building size={14} className="text-emerald-400 shrink-0" />;
+  if (name.includes("water")) return <Droplets size={14} className="text-emerald-400 shrink-0" />;
+
+  return <Check size={14} className="text-emerald-400 shrink-0" />;
+}
 
   return (
     <div className="min-h-screen bg-[#0B1020] text-white pt-24 pb-24 px-4 sm:px-6">
@@ -203,7 +241,7 @@ export default function PropertyDetailsPage() {
                       transition={{ duration: 0.35, delay: 0.1 + i * 0.05 }}
                       className="flex items-center gap-2 text-sm text-slate-300 bg-white/[0.03] border border-white/5 rounded-lg px-3 py-2"
                     >
-                      <Check size={14} className="text-emerald-400 shrink-0" />
+                      <AmenityIcon amenity={amenity} />
                       <span className="capitalize">{amenity}</span>
                     </motion.div>
                   ))}
