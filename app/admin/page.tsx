@@ -21,6 +21,8 @@ import {
   Upload,
   Star,
   Loader2,
+  Settings,
+  Check,
 } from "lucide-react";
 
 interface PropertyImage {
@@ -83,7 +85,7 @@ function getGreeting(hour: number): string {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [view, setView] = useState<"dashboard" | "properties" | "add" | "edit">("dashboard");
+  const [view, setView] = useState<"dashboard" | "properties" | "add" | "edit" | "settings">("dashboard");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,7 +180,7 @@ export default function AdminDashboardPage() {
 
   const recentProperties = properties.slice(0, 5);
 
-  function goTo(next: "dashboard" | "properties" | "add" | "edit") {
+  function goTo(next: "dashboard" | "properties" | "add" | "edit" | "settings") {
     setView(next);
     setDrawerOpen(false);
   }
@@ -253,6 +255,12 @@ export default function AdminDashboardPage() {
             icon={PlusCircle}
             active={view === "add"}
             onClick={() => { setSelectedProperty(null); goTo("add"); }}
+          />
+          <NavItem
+            label="Settings"
+            icon={Settings}
+            active={view === "settings"}
+            onClick={() => goTo("settings")}
           />
 
           <div className="mx-1 my-3" style={{ borderTop: `1px solid ${C.border}` }} />
@@ -341,6 +349,12 @@ export default function AdminDashboardPage() {
                 <div className="text-xl font-normal sm:text-2xl lg:text-3xl truncate">
                   {selectedProperty?.title}
                 </div>
+              </div>
+            )}
+            {view === "settings" && (
+              <div className="min-w-0">
+                <div className="mb-1 text-xs" style={{ color: C.textDim }}>Site</div>
+                <div className="text-xl font-normal sm:text-2xl lg:text-3xl">Settings</div>
               </div>
             )}
           </div>
@@ -464,6 +478,18 @@ export default function AdminDashboardPage() {
                   onCancel={() => goTo("properties")}
                   onSaved={() => { loadProperties(); goTo("properties"); }}
                 />
+              </motion.section>
+            )}
+
+            {view === "settings" && (
+              <motion.section
+                key="settings"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25 }}
+              >
+                <SiteSettingsForm />
               </motion.section>
             )}
           </AnimatePresence>
@@ -657,6 +683,199 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 }
 
 /* ============================================================
+   SITE SETTINGS — lets the admin change the host DP (and name)
+   without touching code or the Supabase table editor.
+   ============================================================ */
+
+function SiteSettingsForm() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [hostName, setHostName] = useState("");
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(null);
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [newPreview, setNewPreview] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select("host_name, host_photo_url")
+        .eq("id", 1)
+        .single();
+
+      if (!error && data) {
+        setHostName(data.host_name || "");
+        setCurrentPhotoUrl(data.host_photo_url || null);
+      }
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  const readFileAsDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") resolve(reader.result);
+        else reject(new Error("Unexpected file reader result"));
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    try {
+      const preview = await readFileAsDataURL(file);
+      setNewFile(file);
+      setNewPreview(preview);
+    } catch (err) {
+      console.error("Failed to read file for preview:", err);
+    }
+  };
+
+  async function handleSave() {
+    setError(null);
+    setSaved(false);
+    setSaving(true);
+
+    try {
+      let photoUrl = currentPhotoUrl;
+
+      if (newFile) {
+        const ext = newFile.name.split(".").pop();
+        const path = `host/${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("site-assets")
+          .upload(path, newFile, { upsert: true });
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage.from("site-assets").getPublicUrl(path);
+        photoUrl = urlData.publicUrl;
+      }
+
+      const { error: upsertError } = await supabase
+        .from("site_settings")
+        .upsert({ id: 1, host_name: hostName, host_photo_url: photoUrl });
+      if (upsertError) throw upsertError;
+
+      setCurrentPhotoUrl(photoUrl);
+      setNewFile(null);
+      setNewPreview(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: any) {
+      setError(err.message || "Kuna shida imetokea. Jaribu tena.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 py-10 text-sm" style={{ color: C.textMuted }}>
+        <Loader2 size={16} className="animate-spin" /> Loading settings…
+      </div>
+    );
+  }
+
+  const displayedPhoto = newPreview || currentPhotoUrl;
+
+  return (
+    <div
+      className="w-full max-w-xl rounded-2xl p-5 sm:p-8"
+      style={{ border: `1px solid ${C.border}`, backgroundColor: C.card }}
+    >
+      <h3 className="mb-1 text-lg font-medium">Host profile</h3>
+      <p className="mb-6 text-xs" style={{ color: C.textDim }}>
+        This photo and name show up on the homepage under "Meet Your Host."
+      </p>
+
+      <div className="mb-6 flex items-center gap-5">
+        <div
+          className="flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-full"
+          style={{ border: `2px solid ${C.borderGoldSoft}`, backgroundColor: "#0E1526" }}
+        >
+          {displayedPhoto ? (
+            <img src={displayedPhoto} alt="Host" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-xs" style={{ color: C.textDim }}>No photo</span>
+          )}
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors"
+            style={{ border: `1px solid ${C.border}`, color: C.textMuted }}
+          >
+            <Upload size={14} />
+            {currentPhotoUrl ? "Change photo" : "Upload photo"}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <label className="mb-2 block text-xs font-medium" style={{ color: C.textMuted }}>
+          Host name
+        </label>
+        <input
+          value={hostName}
+          onChange={(e) => setHostName(e.target.value)}
+          placeholder="e.g. Brian"
+          className="w-full rounded-lg p-3 text-sm outline-none transition-colors"
+          style={{ border: `1px solid ${C.border}`, backgroundColor: "#0E1526", color: C.text }}
+        />
+      </div>
+
+      {error && (
+        <p
+          className="mb-4 text-xs rounded-lg px-3 py-2"
+          style={{ backgroundColor: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", color: C.red }}
+        >
+          {error}
+        </p>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-transform duration-200 hover:-translate-y-0.5 disabled:opacity-60"
+          style={{ background: goldGradient, color: "#191305" }}
+        >
+          {saving && <Loader2 size={14} className="animate-spin" />}
+          Save changes
+        </button>
+        {saved && (
+          <span className="flex items-center gap-1.5 text-xs" style={{ color: C.emerald }}>
+            <Check size={14} /> Saved
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    PROPERTY FORM — used for both Add and Edit (full backend)
    ============================================================ */
 
@@ -812,9 +1031,6 @@ function PropertyForm({
       max_guests: Number(maxGuests) || 1,
       amenities,
     };
-
-    console.log("PAYLOAD:", payload);
-console.log("AMENITIES:", amenities);
 
     try {
       if (mode === "create") {
@@ -984,42 +1200,37 @@ console.log("AMENITIES:", amenities);
           </div>
         )}
 
-  <label
-  onClick={() => fileInputRef.current?.click()}
-  className="cursor-pointer rounded-xl p-5 text-center flex items-center justify-center"
-  style={{ border: `1px dashed ${C.border}`, color: C.textDim }}
->
-  <Upload size={14} />
-  <span className="ml-2">
-    {newFiles.length === 0
-      ? "Click to upload your first image"
-      : `${newFiles.length} image${newFiles.length > 1 ? "s" : ""} selected`}
-  </span>
-</label>
+        <label
+          onClick={() => fileInputRef.current?.click()}
+          className="cursor-pointer rounded-xl p-5 text-center flex items-center justify-center"
+          style={{ border: `1px dashed ${C.border}`, color: C.textDim }}
+        >
+          <Upload size={14} />
+          <span className="ml-2">
+            {newFiles.length === 0
+              ? "Click to upload your first image"
+              : `${newFiles.length} image${newFiles.length > 1 ? "s" : ""} selected`}
+          </span>
+        </label>
 
-{newFiles.length > 0 && (
-  <button
-    type="button"
-    onClick={() => fileInputRef.current?.click()}
-   className="mt-4 flex w-full items-center justify-center rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-400 transition hover:bg-amber-500/20"
-  >
-    + Add Another Image
-  </button>
-)}
+        {newFiles.length > 0 && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-4 flex w-full items-center justify-center rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-400 transition hover:bg-amber-500/20"
+          >
+            + Add Another Image
+          </button>
+        )}
 
-<input
-  ref={fileInputRef}
-  type="file"
-  accept="image/*"
-  className="hidden"
-  onClick={(e) => {
-    (e.currentTarget as HTMLInputElement).value = "";
-  }}
-  onChange={handleFileSelect}
-/>
-</div>
-        
-      
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+      </div>
 
       {error && (
         <p className="mb-4 text-xs rounded-lg px-3 py-2" style={{ backgroundColor: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", color: C.red }}>

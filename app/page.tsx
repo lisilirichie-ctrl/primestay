@@ -6,17 +6,28 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
   MapPin, ShieldCheck, MessageCircle, Award,
-  Menu, X, Home, Compass, Info, Mail,
+  Menu, X, Home, Compass, Info, Mail, Heart,
 } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaLinkedinIn } from "react-icons/fa";
-import PropertyCard from "@/components/PropertyCard";
 import {
   Property, WhatsAppCTA, WhatsAppIcon, whatsappLink, SITE_NAME,
 } from "@/components/whatsapp";
 
-// TODO: badilisha na jina halisi la host/admin
+
 const HOST_NAME = "Brian";
-const HOST_PHOTO = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=400&q=80";
+// Used only until the "site_settings" row loads from Supabase (or if it's ever empty).
+const DEFAULT_HOST_PHOTO = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=400&q=80";
+
+// Each property's photos, primary image first. Falls back to a placeholder if none uploaded yet.
+const PLACEHOLDER_IMAGE =
+  "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80";
+
+function getPropertyImages(prop: Property): string[] {
+  const imgs = prop.property_images || [];
+  const sorted = [...imgs].sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0));
+  const urls = sorted.map((img) => img.image_url).filter(Boolean);
+  return urls.length > 0 ? urls : [PLACEHOLDER_IMAGE];
+}
 
 const footerLinks = [
   {
@@ -42,14 +53,15 @@ export default function Homepage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState<Property[]>([]);
+  const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null);
+  const [hostPhoto, setHostPhoto] = useState(DEFAULT_HOST_PHOTO);
   const logoClickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Single click on logo -> go home. Double click -> discreet admin access.
   const handleLogoClick = () => {
     if (logoClickTimeout.current) {
       clearTimeout(logoClickTimeout.current);
       logoClickTimeout.current = null;
-      return; // this click was part of a double-click, handled by onDoubleClick
+      return; 
     }
     logoClickTimeout.current = setTimeout(() => {
       router.push("/");
@@ -64,6 +76,27 @@ export default function Homepage() {
     }
     router.push("/auth");
   };
+
+  useEffect(() => {
+    const loadHostPhoto = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("site_settings")
+          .select("host_photo_url")
+          .eq("id", 1)
+          .single();
+
+        if (error) {
+          console.error("site_settings error:", error.message);
+          return;
+        }
+        if (data?.host_photo_url) setHostPhoto(data.host_photo_url);
+      } catch (err) {
+        console.error("Load error:", err);
+      }
+    };
+    loadHostPhoto();
+  }, []);
 
   useEffect(() => {
     const loadProperties = async () => {
@@ -227,7 +260,7 @@ export default function Homepage() {
           className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-6 bg-white/[0.03] border border-white/10 rounded-2xl p-6 sm:p-8"
         >
           <img
-            src={HOST_PHOTO}
+            src={hostPhoto}
             alt={HOST_NAME}
             className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover ring-2 ring-amber-500/40 shrink-0"
           />
@@ -242,52 +275,145 @@ export default function Homepage() {
         </motion.div>
       </section>
 
-      {/* ALL STAYS */}
+      {/* AVAILABLE STAYS — each listing as a big featured-style card */}
       <section className="py-6 pb-16 px-4 sm:px-6" id="stays">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-60px" }}
           transition={{ duration: 0.5 }}
-          className="max-w-7xl mx-auto mb-6"
+          className="max-w-6xl mx-auto mb-8 text-center"
         >
           <h2 className="text-xl sm:text-2xl font-bold">Available Stays</h2>
           <p className="text-slate-400 text-sm mt-1">Every listing here is checked and managed by me personally.</p>
         </motion.div>
 
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-6xl mx-auto flex flex-col gap-8">
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {[...Array(8)].map((_, i) => (
-                <div key={i}>
-                  <div className="aspect-square rounded-xl shimmer mb-2" />
-                  <div className="h-3 shimmer rounded mb-1" />
-                  <div className="h-3 w-2/3 shimmer rounded" />
+            [...Array(3)].map((_, i) => (
+              <div
+                key={i}
+                className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center bg-white/[0.03] border border-white/10 rounded-2xl sm:rounded-[2rem] p-4 sm:p-8"
+              >
+                <div className="aspect-[4/3] w-full rounded-xl sm:rounded-2xl shimmer" />
+                <div>
+                  <div className="h-5 w-2/3 shimmer rounded mb-3" />
+                  <div className="h-3 w-1/3 shimmer rounded mb-3" />
+                  <div className="h-4 w-1/4 shimmer rounded" />
                 </div>
-              ))}
-            </div>
+              </div>
+            ))
           ) : properties.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-slate-400 text-lg mb-2">No stays listed yet</p>
               <p className="text-slate-600 text-sm">Check back soon — new listings are added regularly.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {properties.map((prop, i) => (
+            properties.map((prop, i) => {
+              const images = getPropertyImages(prop);
+              return (
                 <motion.div
                   key={prop.id}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-40px" }}
-                  transition={{ duration: 0.4, delay: Math.min(i * 0.05, 0.4) }}
+                  viewport={{ once: true, margin: "-60px" }}
+                  transition={{ duration: 0.5, delay: Math.min(i * 0.05, 0.3) }}
+                  className="relative bg-white/[0.03] border border-white/10 rounded-2xl sm:rounded-[2rem] p-4 sm:p-8"
                 >
-                  <PropertyCard prop={prop} />
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center">
+                    <button
+                      onClick={() => setLightbox({ images, index: 0 })}
+                      className="relative rounded-xl sm:rounded-2xl overflow-hidden aspect-[4/3] w-full group"
+                    >
+                      <img
+                        src={images[0]}
+                        alt={prop.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                    </button>
+
+                    <div className="flex flex-col">
+                      <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1">
+                        {prop.title}
+                      </h3>
+
+                      <p className="flex items-center gap-1.5 text-slate-400 text-sm mb-4">
+                        <MapPin size={14} /> {prop.city}, {prop.country}
+                      </p>
+
+                      <p className="text-lg sm:text-xl font-bold text-amber-500 mb-6">
+                        KSh {prop.price_per_night.toLocaleString()}{" "}
+                        <span className="text-slate-400 font-medium text-sm">/ night</span>
+                      </p>
+
+                      {/* Extra photos for this listing, if any */}
+                      {images.length > 1 && (
+                        <div className="grid grid-cols-4 gap-2 mb-7">
+                          {images.slice(1, 5).map((src, idx) => (
+                            <button
+                              key={src + idx}
+                              onClick={() => setLightbox({ images, index: idx + 1 })}
+                              className="rounded-lg overflow-hidden aspect-square group"
+                            >
+                              <img
+                                src={src}
+                                alt={`${prop.title} photo ${idx + 2}`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex flex-col sm:flex-row gap-3 mt-auto">
+                        <button
+                          onClick={() => router.push(`/property/${prop.id}`)}
+                          className="flex-1 border border-white/15 hover:border-amber-500/40 hover:bg-white/[0.04] text-white font-semibold px-5 py-3 rounded-xl text-sm transition-all"
+                        >
+                          View Details
+                        </button>
+                        <WhatsAppCTA className="flex-1 bg-gradient-to-br from-[#25D366] to-[#128C7E] hover:brightness-110 hover:shadow-[0_0_16px_rgba(37,211,102,0.5)] text-white font-semibold px-5 py-3 rounded-xl text-sm flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(37,211,102,0.35)] ring-1 ring-white/10 transition-all">
+                          <WhatsAppIcon size={16} /> Chat on WhatsApp
+                        </WhatsAppCTA>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    aria-label="Save to favorites"
+                    className="absolute top-6 right-6 sm:top-10 sm:right-10 w-9 h-9 rounded-full bg-black/30 backdrop-blur flex items-center justify-center hover:bg-black/50 transition-colors"
+                  >
+                    <Heart size={16} />
+                  </button>
                 </motion.div>
-              ))}
-            </div>
+              );
+            })
           )}
         </div>
       </section>
+
+      {/* LIGHTBOX */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-5 right-5 text-white/80 hover:text-white"
+            onClick={() => setLightbox(null)}
+            aria-label="Close"
+          >
+            <X size={28} />
+          </button>
+          <img
+            src={lightbox.images[lightbox.index]}
+            alt="Full view"
+            className="max-h-[85vh] max-w-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       {/* WHY BOOK DIRECT */}
       <section className="py-14 border-t border-white/5">
