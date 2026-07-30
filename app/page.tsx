@@ -16,17 +16,13 @@ import {
 
 const HOST_NAME = "Brian";
 // Used only until the "site_settings" row loads from Supabase (or if it's ever empty).
-const DEFAULT_HOST_PHOTO = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=400&q=80";
 
-// Each property's photos, primary image first. Falls back to a placeholder if none uploaded yet.
-const PLACEHOLDER_IMAGE =
-  "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80";
 
 function getPropertyImages(prop: Property): string[] {
   const imgs = prop.property_images || [];
   const sorted = [...imgs].sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0));
   const urls = sorted.map((img) => img.image_url).filter(Boolean);
-  return urls.length > 0 ? urls : [PLACEHOLDER_IMAGE];
+  return urls.length > 0 ? urls : ["/placeholder-property.jpg"];
 }
 
 const footerLinks = [
@@ -54,7 +50,7 @@ export default function Homepage() {
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState<Property[]>([]);
   const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null);
-  const [hostPhoto, setHostPhoto] = useState(DEFAULT_HOST_PHOTO);
+  const [hostPhoto, setHostPhoto] = useState<string | null>(null);
   const logoClickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleLogoClick = () => {
@@ -252,18 +248,21 @@ export default function Homepage() {
 
       {/* MEET THE HOST */}
       <section className="py-14 px-4 sm:px-6" id="host">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.6 }}
-          className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-6 bg-white/[0.03] border border-white/10 rounded-2xl p-6 sm:p-8"
-        >
-          <img
-            src={hostPhoto}
-            alt={HOST_NAME}
-            className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover ring-2 ring-amber-500/40 shrink-0"
-          />
+  <motion.div
+  initial={{ opacity: 0, y: 20 }}
+  whileInView={{ opacity: 1, y: 0 }}
+  viewport={{ once: true, margin: "-60px" }}
+  transition={{ duration: 0.6 }}
+  className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-6 bg-white/[0.03] border border-white/10 rounded-2xl p-6"
+>
+  {hostPhoto && (
+    <img
+      src={hostPhoto}
+      alt={HOST_NAME}
+      className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover ring-2 ring-amber-500/40 shrink-0"
+    />
+  )}
+  <div className="text-center sm:text-left"></div>
           <div className="text-center sm:text-left">
             <p className="text-amber-500 text-xs font-bold uppercase tracking-widest mb-1">Meet Your Host</p>
             <h3 className="text-xl font-bold mb-2">Hi, I'm {HOST_NAME} </h3>

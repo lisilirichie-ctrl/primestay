@@ -45,11 +45,13 @@ export default function PropertyDetailsPage() {
         .from("properties")
         .select(`
           id, title, description, city, country, property_type,
-          price_per_night, max_guests, bedrooms, bathrooms, amenities,
-          property_images ( image_url, is_primary )
+price_per_night, max_guests, bedrooms, bathrooms, amenities,
+lat, lng,
+property_images ( image_url, is_primary )
         `)
         .eq("id", id)
         .single();
+        console.log(data);
 
       if (error) { console.error(error.message); setLoading(false); return; }
       setProperty(data as Property);
@@ -229,25 +231,35 @@ export default function PropertyDetailsPage() {
               </div>
             )}
 
-            {property.amenities && property.amenities.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Amenities</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {property.amenities.map((amenity, i) => (
-                    <motion.div
-                      key={amenity}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.35, delay: 0.1 + i * 0.05 }}
-                      className="flex items-center gap-2 text-sm text-slate-300 bg-white/[0.03] border border-white/5 rounded-lg px-3 py-2"
-                    >
-                      <AmenityIcon amenity={amenity} />
-                      <span className="capitalize">{amenity}</span>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            )}
+           {property.lat && property.lng && (
+  <div className="mt-10">
+    <h3 className="text-lg font-semibold mb-4">Location</h3>
+
+    <div className="overflow-hidden rounded-2xl border border-white/10">
+      <iframe
+        src={`https://www.google.com/maps?q=${property.lat},${property.lng}&z=15&output=embed`}
+        width="100%"
+        height="350"
+        style={{ border: 0 }}
+        loading="lazy"
+        allowFullScreen
+      />
+    </div>
+
+    <p className="text-sm text-slate-400 mt-3">
+     Approximate location. Exact address is shared after booking.
+    </p>
+
+    <a
+      href={`https://www.google.com/maps?q=${property.lat},${property.lng}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-block mt-4 rounded-xl bg-amber-500 px-5 py-3 font-semibold text-black hover:bg-amber-400 transition"
+    >
+      Open in Google Maps
+    </a>
+  </div>
+)}
           </motion.div>
 
           {/* Right: sticky booking card */}

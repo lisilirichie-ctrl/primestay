@@ -23,6 +23,8 @@ export type Property = {
   max_guests?: number;
   bedrooms?: number;
   bathrooms?: number;
+  lat?: number;
+lng?: number;
   amenities?: string[] | null;
   property_images: PropertyImage[];
 };
