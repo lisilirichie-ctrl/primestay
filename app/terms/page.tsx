@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-const SITE_NAME = "TuliaStays"; // TODO: hakikisha inaendana na SITE_NAME kwenye components/whatsapp.tsx
-const LAST_UPDATED = "July 11, 2026"; // TODO: badilisha tarehe kila ukibadilisha terms
+const SITE_NAME = "TuliaStays";
+const LAST_UPDATED = "July 11, 2026"; 
 
 export default function TermsOfServicePage() {
   return (
